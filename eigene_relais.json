@@ -1,0 +1,16 @@
+[
+ {
+  "kind": "FM",
+  "call": "DB0KH",
+  "place": "Knuell",
+  "freq": 439950000,
+  "duplex": "DUP-",
+  "offset": 9400000,
+  "tone_mode": "TSQL",
+  "tone": 67.0,
+  "rpt1": "",
+  "gateway": "",
+  "lat": 50.913167,
+  "lon": 9.418333
+ }
+]
