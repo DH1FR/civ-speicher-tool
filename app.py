@@ -533,9 +533,12 @@ class App(tk.Tk):
         self.tree.bind('<Control-a>', lambda e: (self.tree.selection_set(self.tree.get_children()), 'break')[1])
         self.tree.bind('<Alt-Up>', lambda e: (self.move_channels(-1), 'break')[1])
         self.tree.bind('<Alt-Down>', lambda e: (self.move_channels(1), 'break')[1])
+        self.tree.bind('<Control-c>', lambda e: (self.copy_channels(), 'break')[1])
+        self.tree.bind('<Control-v>', lambda e: (self.paste_channels(), 'break')[1])
         bf = ttk.Frame(right)
         bf.pack(fill='x')
         for text, cmd in (('Neuer Speicher', self.add_channel), ('Aendern', self.edit_channel),
+                          ('Kopieren', self.copy_channels), ('Einfuegen', self.paste_channels),
                           ('Loeschen', self.delete_channels), ('▲ Hoch', lambda: self.move_channels(-1)),
                           ('▼ Runter', lambda: self.move_channels(1)), ('Sortieren ...', self.sort_channels),
                           ('Markierte auf anderes Geraet kopieren', lambda: self.copy_set(True)),
@@ -751,6 +754,46 @@ class App(tk.Tk):
             msg += f'\n\n{len(skipped)} Hinweise:\n' + '\n'.join(skipped[:15]) + ('\n...' if len(skipped) > 15 else '')
         messagebox.showinfo('Kopieren', msg)
 
+    def copy_channels(self):
+        """Markierte Speicher in die Zwischenablage des Programms (gilt auch ueber Geraete/Saetze hinweg)."""
+        if not self.need_set():
+            return
+        sel = self.selected_keys()
+        if not sel:
+            messagebox.showinfo('Kopieren', 'Bitte zuerst in der Tabelle einen oder mehrere Speicher markieren '
+                                '(Strg/Umschalt fuer mehrere).')
+            return
+        chans = [Channel.from_dict(c.to_dict()) for c in self.channels if (c.group, c.number) in sel]
+        App.clip = (self.model.key, chans)
+        self.status.config(text=f'{len(chans)} Speicher von {self.model.title} kopiert - '
+                                'Geraet/Satz wechseln und "Einfuegen" (Strg+V) waehlen')
+
+    def paste_channels(self):
+        """Speicher aus der Zwischenablage in den geoeffneten Satz einfuegen (Gerat/Band wird angepasst)."""
+        clip = getattr(App, 'clip', None)
+        if not clip:
+            messagebox.showinfo('Einfuegen', 'Zwischenablage ist leer. Erst Speicher markieren und "Kopieren" waehlen.')
+            return
+        if not self.need_set():
+            return
+        src, chans = MODELS[clip[0]], clip[1]
+        dst = self.model
+        if not dst.band_groups and self.gfilter is not None:      # IC-705: in die gewaehlte Gruppe einfuegen
+            chans = [Channel.from_dict(c.to_dict()) for c in chans]
+            for c in chans:
+                c.group = self.gfilter
+        out, notes = convert_set(chans, src, dst, self.channels)
+        if out:
+            self.channels += out
+            self.persist()
+            self.tree.selection_set([f'{c.group}:{c.number}' for c in out])
+        msg = f'{len(out)} von {len(chans)} Speichern eingefuegt ({src.title} -> {dst.title}, Satz "{self.set_name}").'
+        if notes:
+            msg += f'\n\n{len(notes)} Hinweise:\n' + '\n'.join(notes[:15]) + ('\n...' if len(notes) > 15 else '')
+        if notes:
+            messagebox.showinfo('Einfuegen', msg)
+        self.status.config(text=msg.split('\n')[0] + '  (Mit "Speichern" sichern, dann "Auf Geraet schreiben")')
+
     # -- Kanaele
     def cur_group(self):
         return self.gfilter if self.gfilter is not None else self.model.group
@@ -887,7 +930,7 @@ class App(tk.Tk):
             self.persist()
 
     def delete_in_radio(self):
-        """Speicher oder ganze Gruppen im Funkgeraet loeschen (mit automatischer Sicherung)."""
+        """Speicher oder ganze Gruppen im Funkgeraet loeschen (nach Rueckfrage)."""
         key, model = self.dev.get(), self.model
         cfg = self.cfg['devices'][key]
         sel = self.selected_keys()
@@ -932,28 +975,25 @@ class App(tk.Tk):
             for c in chans:
                 per[c.group] = per.get(c.group, 0) + 1
             summary = ', '.join(f'Gruppe {g}: {n}' for g, n in sorted(per.items()))
-            backup = time.strftime(f'Auto-Sicherung vor Loeschen {model.title} %Y-%m-%d %H%M%S')
             if not messagebox.askyesno('Im Geraet loeschen', f'{len(chans)} belegte Speicher im {model.title} werden GELOESCHT '
-                                       f'({summary}).\n\nVorher wird eine Sicherung als Satz "{backup}" angelegt. Fortfahren?'):
+                                       f'({summary}).\n\nFortfahren?'):
                 return
-            store.save_set(key, backup, chans, {g: model.default_label(g) for g in per if model.default_label(g)})
 
             def erase(report):
                 r = open_radio(key, cfg)
                 try:
                     for i, c in enumerate(chans, 1):
                         if not report(f'Loesche G{c.group}/{c.number} ({i}/{len(chans)})', i, len(chans)):
-                            raise RuntimeError('Abgebrochen - bereits geloeschte Speicher stehen in der Sicherung')
+                            raise RuntimeError('Abgebrochen - bereits geloeschte Speicher bleiben geloescht')
                         r.clear_channel(c.number, c.group)
                 finally:
                     r.close()
 
             def erased(_, err2):
-                self.reload_list()
                 if err2:
-                    messagebox.showerror('Loeschen', str(err2) + f'\n\nSicherung: "{backup}"')
+                    messagebox.showerror('Loeschen', str(err2))
                 else:
-                    messagebox.showinfo('Loeschen', f'{len(chans)} Speicher im Geraet geloescht.\nSicherung: "{backup}"')
+                    messagebox.showinfo('Loeschen', f'{len(chans)} Speicher im Geraet geloescht.')
 
             run_bg(self, 'Im Geraet loeschen', erase, erased)
 
@@ -1068,28 +1108,17 @@ class App(tk.Tk):
             return
         host = self.cfg['devices'][key]['host']
         if not messagebox.askyesno('Schreiben', f'{len(chans)} Speicher auf {model.title} ({host}) schreiben?\n'
-                                   'Bestehende Speicher mit gleicher Nummer werden ueberschrieben.\n'
-                                   'Vorher wird automatisch eine Sicherung dieser Kanaele angelegt.'):
+                                   'Bestehende Speicher mit gleicher Nummer werden ueberschrieben.'):
             return
         cfg = self.cfg['devices'][key]
-        backup_name = time.strftime(f'Auto-Sicherung vor Schreiben {model.title} %Y-%m-%d %H%M%S')
 
         def work(report):
             r = open_radio(key, cfg)
             try:
-                old = []
                 for i, c in enumerate(chans, 1):
-                    if not report(f'Sichere G{c.group}/{c.number} ({i}/{len(chans)})', i, len(chans) * 2):
-                        raise RuntimeError('Abgebrochen')
-                    o = r.read_channel(c.number, c.group)
-                    if o:
-                        old.append(o)
-                store.save_set(key, backup_name, old)
-                for i, c in enumerate(chans, 1):
-                    if not report(f'Schreibe G{c.group}/{c.number} ({i}/{len(chans)})', len(chans) + i, len(chans) * 2):
+                    if not report(f'Schreibe G{c.group}/{c.number} ({i}/{len(chans)})', i, len(chans)):
                         raise RuntimeError('Abgebrochen - bereits geschriebene Kanaele bleiben im Geraet')
                     r.write_channel(c)
-                return len(old)
             finally:
                 r.close()
 
@@ -1097,8 +1126,7 @@ class App(tk.Tk):
             if err:
                 messagebox.showerror('Schreiben', str(err))
             else:
-                messagebox.showinfo('Schreiben', f'{len(chans)} Speicher geschrieben.\n{res} bisherige Speicher wurden als '
-                                    f'"{backup_name}" gesichert.')
+                messagebox.showinfo('Schreiben', f'{len(chans)} Speicher geschrieben.')
             self.reload_list()
 
         run_bg(self, 'Auf Geraet schreiben', work, done)
