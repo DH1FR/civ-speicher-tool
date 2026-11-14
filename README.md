@@ -1,4 +1,5 @@
 # CIV-Speicher-Tool (IC-9700 / IC-705)
+n[English version](README.en.md)
 
 Start: `python app.py` (Python 3.11+, keine Zusatzpakete). Test ohne Geraet: Host `sim` eintragen; `python selftest.py`.
 
