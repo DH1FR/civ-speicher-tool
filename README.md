@@ -1,6 +1,7 @@
 # CIV-Speicher-Tool (IC-9700 / IC-705)
 
 [English version](README.en.md)
+
 Start: `python app.py` (Python 3.11+, keine Zusatzpakete). Test ohne Geraet: Host `sim` eintragen; `python selftest.py`.
 
 1. Einstellungen: IP, Netzwerk-Benutzer/-Passwort je Geraet (am Geraet unter Network > Network User), Ort/PLZ.
