@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from memory import Channel, MHZ, BAND_2M, BAND_70, BAND_23
 from store import BASE
 
-UA = 'IcomTool/0.1 (Amateurfunk Speicherverwaltung)'
+UA = 'CivSpeicherTool/0.1 (Amateurfunk Speicherverwaltung)'
 CACHE = os.path.join(BASE, 'cache')
 URLS = {
     'FM': 'https://a23-wertheim.de/index.php/downloads/d-star/repeater-listen?download='

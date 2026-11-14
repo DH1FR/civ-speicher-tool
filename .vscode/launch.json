@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Icom Tool",
+      "name": "CIV-Speicher-Tool",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/app.py",

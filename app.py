@@ -1,4 +1,4 @@
-"""Icom Speicher-Tool fuer IC-9700 / IC-705 (Tkinter)."""
+"""CIV-Speicher-Tool fuer IC-9700 / IC-705 (Tkinter)."""
 import threading
 import time
 import tkinter as tk
@@ -463,7 +463,7 @@ class RepeaterDialog(tk.Toplevel):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Icom Speicher-Tool - IC-9700 / IC-705')
+        self.title('CIV-Speicher-Tool - IC-9700 / IC-705')
         self.geometry('1100x620')
         self.cfg = store.load_config()
         self.dev = tk.StringVar(value=DEVICES[0])
